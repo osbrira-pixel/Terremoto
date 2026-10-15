@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Órdenes - Service Now</title>
+    <style>
+        :root {
+            --primary-color: #0f172a;
+            --secondary-color: #3b82f6;
+            --accent-color: #f59e0b;
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-color: #334155;
+            --border-color: #e2e8f0;
+        }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #file-loader-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.95);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            color: white;
+            text-align: center;
+        }
+        .loader-card {
+            background: #1e293b;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            max-width: 500px;
+            width: 90%;
+            border: 1px solid #334155;
+        }
+        .loader-card h2 {
+            margin-bottom: 15px;
+            color: #f8fafc;
+        }
+        .loader-card p {
+            margin-bottom: 25px;
+            color: #94a3b8;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .btn-file-select {
+            display: inline-block;
+            background: var(--secondary-color);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: background 0.2s;
+            border: none;
+        }
+        .btn-file-select:hover {
+            background: #2563eb;
+        }
+        aside {
+            width: 320px;
+            background: var(--primary-color);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+        .sidebar-header {
+            padding: 20px;
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+        }
+        .sidebar-header h1 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #f8fafc;
+        }
+        .sidebar-search-container {
+            padding: 15px 20px;
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+        }
+        .search-box {
+            display: flex;
+            gap: 6px;
+        }
+        .search-box input {
+            flex-grow: 1;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid #475569;
+            background: #0f172a;
+            color: white;
+            font-size: 13px;
+        }
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--secondary-color);
+        }
+        .search-box button {
+            background: var(--secondary-color);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+        }
+        .sidebar-menu {
+            padding: 20px;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+        .menu-title-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .menu-title {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #94a3b8;
+            font-weight: 600;
+            margin: 0;
+        }
+        .menu-subtitle-service {
+            font-size: 11px;
+            color: var(--accent-color);
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        .menu-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 14px;
+            margin-bottom: 6px;
+            background: #1e293b;
+            border-radius: 6px;
+            text-decoration: none;
+            color: #f8fafc;
+            transition: all 0.2s;
+            border-left: 4px solid var(--secondary-color);
+            font-size: 13px;
+        }
+        .menu-item:hover {
+            background: #334155;
+            transform: translateX(4px);
+        }
+        .badge {
+            background: var(--secondary-color);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        main {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: #f1f5f9;
+        }
+        header {
+            height: 60px;
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 30px;
+        }
+        .breadcrumb {
+            font-size: 14px;
+            color: #64748b;
+        }
+        .breadcrumb span {
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+        .content-container {
+            flex-grow: 1;
+            padding: 30px;
+            overflow-y: auto;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+        .view-section {
+            display: none;
+            width: 100%;
+            max-width: 1250px;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        .view-section.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .slide-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+            border: 1px solid var(--border-color);
+            padding: 30px;
+            display: grid;
+            grid-template-columns: 1.4fr 1.6fr;
+            gap: 25px;
+        }
+        .slide-header {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        .slide-header h2 {
+            font-size: 20px;
+            color: var(--primary-color);
+        }
+        .tag-estado {
+            background: #e0f2fe;
+            color: #0369a1;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .afectacion-badge {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 13px;
+            display: inline-block;
+            text-align: center;
+        }
+        .afectacion-verde { background-color: #dcfce7; color: #166534; border: 1px solid #86efac; }
+        .afectacion-anaranjado { background-color: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+        .afectacion-rojo { background-color: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+        .slide-grid-content {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .info-group {
+            background: #f8fafc;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        .info-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #64748b;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .info-value {
+            font-size: 14px;
+            color: #1e293b;
+            font-weight: 500;
+        }
+        .photos-grid-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 12px;
+            background: #f8fafc;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 15px;
+            align-content: center;
+        }
+        .photo-slot {
+            background: #ffffff;
+            border: 2px dashed #cbd5e1;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 8px;
+            color: #64748b;
+            height: 180px;
+            position: relative;
+        }
+        .photo-slot img {
+            max-width: 100%;
+            max-height: 140px;
+            object-fit: contain;
+            border-radius: 4px;
+            cursor: zoom-in;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .photo-slot img:hover {
+            transform: scale(1.03);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+        .photo-slot-label {
+            font-size: 10px;
+            font-weight: 600;
+            color: #475569;
+            margin-top: 4px;
+            text-transform: uppercase;
+        }
+        .orders-table-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+            border: 1px solid var(--border-color);
+            padding: 30px;
+            width: 100%;
+        }
+        .orders-table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        .orders-table-header h2 {
+            font-size: 20px;
+            color: var(--primary-color);
+            margin: 0;
+        }
+        .btn-excel {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-excel:hover { background: #059669; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+        th, td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 14px;
+        }
+        th {
+            background: #f8fafc;
+            color: #475569;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 12px;
+        }
+        tr:hover td { background: #f8fafc; }
+        tfoot td {
+            background: #f8fafc;
+            font-weight: 700;
+            border-top: 2px solid var(--border-color);
+        }
+        .order-link {
+            color: var(--secondary-color);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .order-link:hover { text-decoration: underline; }
+        .btn-back {
+            background: #64748b;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+            margin-bottom: 20px;
+        }
+        .btn-back:hover { background: #475569; }
+
+        #image-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.9);
+            z-index: 10000;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        #modal-img {
+            max-width: 90%;
+            max-height: 85vh;
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border: 2px solid #334155;
+        }
+        .modal-close {
+            position: absolute;
+            top: 25px;
+            right: 35px;
+            color: white;
+            font-size: 36px;
+            font-weight: bold;
+            cursor: pointer;
+            background: rgba(255,255,255,0.1);
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-caption {
+            color: #cbd5e1;
+            margin-top: 15px;
+            font-size: 16px;
+            font-weight: 500;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+
+    <div id="image-modal" onclick="closeModal()">
+        <span class="modal-close">&times;</span>
+        <img id="modal-img" src="" alt="Imagen Ampliada">
+        <div class="modal-caption" id="modal-caption"></div>
+    </div>
+
+    <div id="file-loader-screen">
+        <div class="loader-card">
+            <h2>Cargar Archivo Excel</h2>
+            <p>Selecciona tu archivo Excel local <strong>Validacion_puerto_PON_fallassplitter.xlsx</strong> para iniciar, o espera a que cargue automáticamente desde la web si está en GitHub:</p>
+            <label class="btn-file-select">
+                📁 Seleccionar Archivo Local
+                <input type="file" id="manual-file-input" accept=".xlsx, .xls" style="display: none;" onchange="handleFileSelect(event)">
+            </label>
+        </div>
+    </div>
+
+    <aside>
+        <div class="sidebar-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <h1>Service Now - O&M</h1>
+            <span style="background: #3b82f6; color: white; font-size: 11px; padding: 3px 8px; border-radius: 6px; font-weight: 600;">v1.0</span>
+        </div>
+        <div class="sidebar-search-container">
+            <div class="search-box">
+                <input type="text" id="search-input" placeholder="Buscar WO o WOT..." onkeydown="if(event.key === 'Enter') searchOrder()">
+                <button onclick="searchOrder()">🔍</button>
+            </div>
+        </div>
+        <div class="sidebar-menu" id="sidebar-menu-content">
+            <div class="menu-title-container">
+                <span class="menu-title">Estado de órdenes</span>
+                <span class="menu-subtitle-service">Service Now</span>
+            </div>
+            <div id="states-menu-container">
+                <p style="color: #94a3b8; font-size: 13px;">Cargue un archivo...</p>
+            </div>
+
+            <div class="menu-title-container" style="margin-top: 25px;">
+                <span class="menu-title">Estado puertos PON</span>
+                <span class="menu-subtitle-service" style="color: #38bdf8;">Reporte Pon</span>
+            </div>
+            <div id="pon-menu-container">
+                <p style="color: #94a3b8; font-size: 13px;">Cargue un archivo...</p>
+            </div>
+        </div>
+    </aside>
+
+    <main>
+        <header>
+            <div class="breadcrumb" id="breadcrumb-text">Inicio / <span>Panel Principal</span></div>
+            <div style="font-size: 13px; font-weight: 600; color: #475569;" id="file-loaded-name">Ningún archivo cargado</div>
+        </header>
+        <div class="content-container" id="main-content-area">
+            <div style="text-align: center; color: #64748b; margin-top: 50px;">
+                <h2>Bienvenido al Sistema de Gestión de Órdenes <span style="font-size: 14px; background: #e0f2fe; color: #0369a1; padding: 2px 10px; border-radius: 12px; font-weight: 600; vertical-align: middle;">Versión 1.0</span></h2>
+                <p style="margin-top: 10px;">Seleccione o cargue su archivo Excel para comenzar.</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let excelData = [];
+        let ponData = [];
+        let noRecuperableSheetData = [];
+        let workbookGlobal = null;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            fetch('Validacion_puerto_PON_fallassplitter.xlsx')
+                .then(response => {
+                    if (!response.ok) throw new Error("Carga web no disponible.");
+                    return response.arrayBuffer();
+                })
+                .then(arrayBuffer => {
+                    const data = new Uint8Array(arrayBuffer);
+                    processWorkbookData(data, "Validacion_puerto_PON_fallassplitter.xlsx (Web)");
+                })
+                .catch(err => {
+                    console.log("Carga automática web omitida. Esperando selección local de archivo.");
+                });
+        });
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const data = new Uint8Array(evt.target.result);
+                    processWorkbookData(data, file.name);
+                } catch (err) {
+                    console.error("Error al procesar:", err);
+                    alert("Error al leer el archivo Excel.");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function processWorkbookData(data, sourceName) {
+            workbookGlobal = XLSX.read(data, {type: 'array', cellDates: true});
+            
+            let sheetName = workbookGlobal.SheetNames.includes('Service Now') ? 'Service Now' : workbookGlobal.SheetNames[0];
+            const worksheet = workbookGlobal.Sheets[sheetName];
+            excelData = XLSX.utils.sheet_to_json(worksheet);
+
+            let ponSheetName = workbookGlobal.SheetNames.find(s => s.toLowerCase().includes('reporte pon') || s.toLowerCase().includes('reportepon'));
+            if (!ponSheetName) {
+                ponSheetName = workbookGlobal.SheetNames.length > 1 ? workbookGlobal.SheetNames[1] : workbookGlobal.SheetNames[0];
+            }
+            const ponWorksheet = workbookGlobal.Sheets[ponSheetName];
+            ponData = XLSX.utils.sheet_to_json(ponWorksheet, {header: 1}); 
+
+            let noRecuperableSheetName = workbookGlobal.SheetNames.find(s => s.toLowerCase().includes('no recuperable') || s.toLowerCase().includes('norecuperable'));
+            if (noRecuperableSheetName) {
+                const nrWorksheet = workbookGlobal.Sheets[noRecuperableSheetName];
+                noRecuperableSheetData = XLSX.utils.sheet_to_json(nrWorksheet, {header: 1});
+            }
+            
+            document.getElementById('file-loader-screen').style.display = 'none';
+            document.getElementById('file-loaded-name').innerText = sourceName;
+
+            buildStatesMenu();
+            buildPonMenu();
+            resetToHome();
+        }
+
+        function findHeaderIndex(headers, keywords) {
+            if (!headers || !Array.isArray(headers)) return -1;
+            for (let i = 0; i < headers.length; i++) {
+                const h = String(headers[i] || '').toLowerCase().trim();
+                for (const kw of keywords) {
+                    if (h.includes(kw.toLowerCase())) return i;
+                }
+            }
+            return -1;
+        }
+
+        function calculateDays(createdDate) {
+            if (!createdDate) return 0;
+            const created = new Date(createdDate);
+            const today = new Date();
+            const diffTime = Math.abs(today - created);
+            return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        }
+
+        function getAfectacionBadge(val) {
+            if (val === undefined || val === null || val === '') return '<span class="afectacion-badge">N/A</span>';
+            const num = Number(val);
+            if (isNaN(num)) return `<span class="afectacion-badge">${val}</span>`;
+            let cls = num >= 64 ? 'afectacion-rojo' : (num >= 16 ? 'afectacion-anaranjado' : 'afectacion-verde');
+            return `<span class="afectacion-badge ${cls}">${num}</span>`;
+        }
+
+        function getStateColors(estado) {
+            const est = estado.toLowerCase();
+            if (est.includes('cerrado') || est.includes('solucionado')) return { border: '#10b981', badge: '#059669' };
+            if (est.includes('no recuperable') || est.includes('demora') || est.includes('falla') || est.includes('dañ')) return { border: '#ef4444', badge: '#dc2626' };
+            return { border: '#f59e0b', badge: '#d97706' };
+        }
+
+        function buildStatesMenu() {
+            const menuContainer = document.getElementById('states-menu-container');
+            menuContainer.innerHTML = '';
+            const counts = {};
+            excelData.forEach(row => {
+                const estado = row['Estado/Terremo'] || 'Sin Estado';
+                counts[estado] = (counts[estado] || 0) + 1;
+            });
+            for (const [estado, count] of Object.entries(counts)) {
+                const colors = getStateColors(estado);
+                const item = document.createElement('a');
+                item.href = '#';
+                item.className = 'menu-item';
+                item.style.borderLeftColor = colors.border;
+                item.innerHTML = `<span>${estado}</span> <span class="badge" style="background:${colors.badge};">${count}</span>`;
+                item.onclick = (e) => { e.preventDefault(); showOrdersList(estado); };
+                menuContainer.appendChild(item);
+            }
+        }
+
+        function buildPonMenu() {
+            const ponContainer = document.getElementById('pon-menu-container');
+            ponContainer.innerHTML = '';
+            const targetStates = ['Parcial', 'Se demora', 'Pendiente', 'No recuperable', 'Solucionado'];
+            const counts = { 'Parcial': 0, 'Se demora': 0, 'Pendiente': 0, 'No recuperable': 0, 'Solucionado': 0 };
+
+            for (let i = 1; i < ponData.length; i++) {
+                const row = ponData[i];
+                if (!row || row.length === 0) continue;
+                const estadoM = String(row[12] || '').trim();
+                for (const target of targetStates) {
+                    if (target !== 'No recuperable' && estadoM.toLowerCase() === target.toLowerCase()) {
+                        counts[target] = (counts[target] || 0) + 1;
+                    }
+                }
+            }
+
+            if (noRecuperableSheetData && noRecuperableSheetData.length > 1) {
+                const headers = noRecuperableSheetData[0];
+                const edifIdx = findHeaderIndex(headers, ['edificio', 'conjunto']);
+                const uniqueEdificios = new Set();
+                for (let i = 1; i < noRecuperableSheetData.length; i++) {
+                    const row = noRecuperableSheetData[i];
+                    if (!row || row.length === 0) continue;
+                    const edificio = edifIdx !== -1 && row[edifIdx] !== undefined ? String(row[edifIdx]).trim() : (row[6] !== undefined ? String(row[6]).trim() : '');
+                    if (edificio && edificio !== 'N/A') uniqueEdificios.add(edificio);
+                }
+                counts['No recuperable'] = uniqueEdificios.size;
+            }
+
+            targetStates.forEach(estado => {
+                const count = counts[estado] || 0;
+                const colors = getStateColors(estado);
+                const item = document.createElement('a');
+                item.href = '#';
+                item.className = 'menu-item';
+                item.style.borderLeftColor = colors.border;
+                item.innerHTML = `<span>${estado}</span> <span class="badge" style="background:${colors.badge};">${count}</span>`;
+                item.onclick = (e) => { e.preventDefault(); showPonList(estado); };
+                ponContainer.appendChild(item);
+            });
+        }
+
+        function showPonList(estadoEstado) {
+            document.getElementById('breadcrumb-text').innerHTML = `Reporte Pon / <span>${estadoEstado}</span>`;
+            const container = document.getElementById('main-content-area');
+            container.innerHTML = '';
+            const isNoRecuperable = estadoEstado.toLowerCase() === 'no recuperable';
+            const card = document.createElement('div');
+            card.className = 'orders-table-card';
+
+            if (isNoRecuperable) {
+                const headers = noRecuperableSheetData[0];
+                const edifIdx = findHeaderIndex(headers, ['edificio', 'conjunto']);
+                const comunaIdx = findHeaderIndex(headers, ['comuna']);
+                const centralIdx = findHeaderIndex(headers, ['central']);
+                const groups = {};
+
+                for (let i = 1; i < noRecuperableSheetData.length; i++) {
+                    const r = noRecuperableSheetData[i];
+                    if (!r || r.length === 0) continue;
+                    const edificio = edifIdx !== -1 && r[edifIdx] !== undefined && String(r[edifIdx]).trim() !== '' ? String(r[edifIdx]).trim() : (r[6] !== undefined ? String(r[6]).trim() : 'N/A');
+                    if (!edificio || edificio === 'N/A') continue;
+                    const comuna = comunaIdx !== -1 && r[comunaIdx] !== undefined ? r[comunaIdx] : (r[0] || 'N/A');
+                    const central = centralIdx !== -1 && r[centralIdx] !== undefined ? r[centralIdx] : (r[1] || 'N/A');
+
+                    if (!groups[edificio]) {
+                        groups[edificio] = { edificio, central, comuna, count: 0 };
+                    }
+                    groups[edificio].count += 1;
+                }
+
+                const groupList = Object.values(groups);
+                groupList.sort((a, b) => a.edificio.localeCompare(b.edificio));
+                let totalCtosSum = 0;
+
+                let html = `
+                    <button class="btn-back" onclick="resetToHome()">← Volver al inicio</button>
+                    <div class="orders-table-header">
+                        <h2>Reporte PON - Estado: ${estadoEstado} (${groupList.length} Edificios)</h2>
+                        <button class="btn-excel" onclick="exportPonToExcel('${estadoEstado}')">📥 Exportar a Excel</button>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Comuna</th>
+                                <th>Central</th>
+                                <th>Edificio / Conjunto</th>
+                                <th style="text-align: center;">Cuenta de Edificio / Conjunto (CTOs Afectadas)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                groupList.forEach(item => {
+                    totalCtosSum += item.count;
+                    html += `
+                        <tr>
+                            <td>${item.comuna}</td>
+                            <td>${item.central}</td>
+                            <td><a href="#" class="order-link" onclick="showEdificioDetail('${item.edificio.replace(/'/g, "\\'")}')">${item.edificio}</a></td>
+                            <td style="text-align: center; font-weight: 700; color: #0284c7; font-size: 15px;">${item.count}</td>
+                        </tr>
+                    `;
+                });
+
+                html += `</tbody><tfoot><tr><td colspan="3" style="text-align: right; font-weight: 700;">Total CTOs Afectadas:</td><td style="text-align: center; font-weight: 700; color: #0284c7; font-size: 15px;">${totalCtosSum}</td></tr></tfoot></table>`;
+                card.innerHTML = html;
+                container.appendChild(card);
+            } else {
+                const filteredPonRows = [];
+                for (let i = 1; i < ponData.length; i++) {
+                    const row = ponData[i];
+                    if (!row || row.length === 0) continue;
+                    if (String(row[12] || '').trim().toLowerCase() === estadoEstado.toLowerCase()) {
+                        filteredPonRows.push(row);
+                    }
+                }
+
+                let totalAfectacionPonSum = 0;
+                let html = `
+                    <button class="btn-back" onclick="resetToHome()">← Volver al inicio</button>
+                    <div class="orders-table-header">
+                        <h2>Reporte PON - Estado: ${estadoEstado} (${filteredPonRows.length})</h2>
+                        <button class="btn-excel" onclick="exportPonToExcel('${estadoEstado}')">📥 Exportar a Excel</button>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Corte NOC</th>
+                                <th>Puerto PON</th>
+                                <th>Cable</th>
+                                <th>Splitter</th>
+                                <th style="text-align: center;">Afectación</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                filteredPonRows.forEach(r => {
+                    const afNum = Number(r[6]);
+                    if (!isNaN(afNum)) totalAfectacionPonSum += afNum;
+                    html += `<tr><td>${r[0] || 'N/A'}</td><td>${r[2] || 'N/A'}</td><td>${r[4] || 'N/A'}</td><td>${r[5] || 'N/A'}</td><td style="text-align: center;">${getAfectacionBadge(r[6])}</td></tr>`;
+                });
+
+                html += `</tbody><tfoot><tr><td colspan="4" style="text-align: right; font-weight: 700;">Total Afectación:</td><td style="text-align: center; font-weight: 700; color: #0284c7; font-size: 15px;">${totalAfectacionPonSum}</td></tr></tfoot></table>`;
+                card.innerHTML = html;
+                container.appendChild(card);
+            }
+        }
+
+        function exportPonToExcel(estadoEstado) {
+            const isNoRecuperable = estadoEstado.toLowerCase() === 'no recuperable';
+            let exportData = [];
+
+            if (isNoRecuperable) {
+                const headers = noRecuperableSheetData[0];
+                const edifIdx = findHeaderIndex(headers, ['edificio', 'conjunto']);
+                const comunaIdx = findHeaderIndex(headers, ['comuna']);
+                const centralIdx = findHeaderIndex(headers, ['central']);
+                const groups = {};
+
+                for (let i = 1; i < noRecuperableSheetData.length; i++) {
+                    const r = noRecuperableSheetData[i];
+                    if (!r || r.length === 0) continue;
+                    const edificio = edifIdx !== -1 && r[edifIdx] !== undefined && String(r[edifIdx]).trim() !== '' ? String(r[edifIdx]).trim() : (r[6] !== undefined ? String(r[6]).trim() : '');
+                    if (!edificio || edificio === 'N/A') continue;
+
+                    if (!groups[edificio]) {
+                        groups[edificio] = {
+                            "Comuna": comunaIdx !== -1 ? r[comunaIdx] : (r[0] || ''),
+                            "Central": centralIdx !== -1 ? r[centralIdx] : (r[1] || ''),
+                            "Edificio / Conjunto": edificio,
+                            "Cuenta de Edificio / Conjunto (CTOs Afectadas)": 0
+                        };
+                    }
+                    groups[edificio]["Cuenta de Edificio / Conjunto (CTOs Afectadas)"] += 1;
+                }
+                exportData = Object.values(groups);
+            } else {
+                for (let i = 1; i < ponData.length; i++) {
+                    const row = ponData[i];
+                    if (!row || row.length === 0) continue;
+                    if (String(row[12] || '').trim().toLowerCase() === estadoEstado.toLowerCase()) {
+                        exportData.push({
+                            "Corte NOC": row[0] || '',
+                            "PON": row[2] || '',
+                            "Cable": row[4] || '',
+                            "Splitter": row[5] || '',
+                            "Afectación": row[6] !== undefined ? row[6] : '',
+                            "Observación": row[7] || ''
+                        });
+                    }
+                }
+            }
+
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Reporte_PON");
+            XLSX.writeFile(workbook, `ReportePON_${estadoEstado.replace(/\s+/g, '_')}.xlsx`);
+        }
+
+        function showOrdersList(estado) {
+            document.getElementById('breadcrumb-text').innerHTML = `Estado / <span>${estado}</span>`;
+            const container = document.getElementById('main-content-area');
+            container.innerHTML = '';
+            const filteredRows = excelData.filter(row => (row['Estado/Terremo'] || 'Sin Estado') === estado);
+            filteredRows.sort((a, b) => calculateDays(b['Creado']) - calculateDays(a['Creado']));
+
+            const card = document.createElement('div');
+            card.className = 'orders-table-card';
+            let totalAfectacionServiceSum = 0;
+
+            let html = `
+                <button class="btn-back" onclick="resetToHome()">← Volver al inicio</button>
+                <div class="orders-table-header">
+                    <h2>Órdenes en estado: ${estado} (${filteredRows.length})</h2>
+                    <button class="btn-excel" onclick="exportStateToExcel('${estado}')">📥 Exportar a Excel</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Número (WOT)</th>
+                            <th>WO (Principal)</th>
+                            <th>Ciudad</th>
+                            <th>Descripción Breve</th>
+                            <th style="text-align: center;">Días en Bandeja</th>
+                            <th style="text-align: center;">Afectación</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            filteredRows.forEach(row => {
+                const numero = row['Número'] || 'N/A';
+                const wo = row['Principal'] || 'N/A';
+                const ciudad = row['Ubicación'] || 'N/A';
+                const desc = row['Descripción breve'] || 'Sin descripción';
+                const shortDesc = desc.length > 40 ? desc.substring(0, 40) + '...' : desc;
+                const diasBandeja = calculateDays(row['Creado']);
+                const afNum = Number(row['Afectacion']);
+                if (!isNaN(afNum)) totalAfectacionServiceSum += afNum;
+                const globalIndex = excelData.indexOf(row);
+
+                html += `
+                    <tr>
+                        <td><a href="#" class="order-link" onclick="showSlide(${globalIndex}, '${estado}')">${numero}</a></td>
+                        <td><a href="#" class="order-link" onclick="showSlide(${globalIndex}, '${estado}')">${wo}</a></td>
+                        <td>${ciudad}</td>
+                        <td title="${desc}">${shortDesc}</td>
+                        <td style="text-align: center; font-weight: 600;">${diasBandeja} días</td>
+                        <td style="text-align: center;">${getAfectacionBadge(row['Afectacion'])}</td>
+                    </tr>
+                `;
+            });
+
+            html += `</tbody><tfoot><tr><td colspan="5" style="text-align: right; font-weight: 700;">Total Afectación:</td><td style="text-align: center; font-weight: 700; color: #0284c7; font-size: 15px;">${totalAfectacionServiceSum}</td></tr></tfoot></table>`;
+            card.innerHTML = html;
+            container.appendChild(card);
+        }
+
+        function exportStateToExcel(estado) {
+            const filteredRows = excelData.filter(row => (row['Estado/Terremo'] || 'Sin Estado') === estado);
+            const exportData = filteredRows.map(row => ({
+                "Número (WOT)": row['Número'] || '',
+                "WO (Principal)": row['Principal'] || '',
+                "Ciudad": row['Ubicación'] || '',
+                "Descripción Breve": row['Descripción breve'] || '',
+                "Estado / Terreno": row['Estado/Terremo'] || '',
+                "Días en Bandeja": calculateDays(row['Creado']),
+                "Afectación": row['Afectacion'] !== undefined ? row['Afectacion'] : '',
+                "Observación": row['Observacion'] || ''
+            }));
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Órdenes");
+            XLSX.writeFile(workbook, `Ordenes_${estado.replace(/\s+/g, '_')}.xlsx`);
+        }
+
+        function showSlide(index, estadoOrigen) {
+            const row = excelData[index];
+            const wo = row['Principal'] || 'N/A';
+            const numero = row['Número'] || 'N/A';
+            const ciudad = row['Ubicación'] || 'N/A';
+            const diasBandeja = calculateDays(row['Creado']);
+            const descBreve = row['Descripción breve'] || 'N/A';
+            const observacion = row['Observacion'] || 'N/A';
+            const afectacion = row['Afectacion'] !== undefined ? row['Afectacion'] : 'N/A';
+            const estado = row['Estado/Terremo'] || 'N/A';
+            const subEstadoWto = row['Sub estado'] || row['Subestado'] || 'N/A';
+            const recuperacionEstimada = row['DIAS/RECUPERACION ESTIMADA'] || row['Dias/Recuperacion Estimada'] || row['Recuperacion estimada'] || 'N/A';
+
+            document.getElementById('breadcrumb-text').innerHTML = `Estado / <a href="#" onclick="showOrdersList('${estadoOrigen}'); return false;" style="color:var(--secondary-color); text-decoration:none;">${estadoOrigen}</a> / <span>${numero}</span>`;
+            const container = document.getElementById('main-content-area');
+            container.innerHTML = '';
+
+            const section = document.createElement('div');
+            section.className = 'view-section active';
+            section.innerHTML = `
+                <button class="btn-back" onclick="showOrdersList('${estadoOrigen}')">← Volver al listado</button>
+                <div class="slide-card">
+                    <div class="slide-header">
+                        <h2>WO: ${wo} <span style="font-size:14px; color:#64748b; font-weight:normal;">(Tiquete: ${numero})</span></h2>
+                        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                            <span style="font-weight: 600; font-size: 14px;">Afectación:</span> ${getAfectacionBadge(afectacion)}
+                            <span class="tag-estado" style="background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1;">Sub estado: ${subEstadoWto}</span>
+                            <span class="tag-estado">${estado}</span>
+                        </div>
+                    </div>
+                    <div class="slide-grid-content">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                            <div class="info-group"><div class="info-label">Ciudad / Ubicación</div><div class="info-value">${ciudad}</div></div>
+                            <div class="info-group"><div class="info-label">Días en Bandeja</div><div class="info-value">${diasBandeja} días</div></div>
+                        </div>
+                        <div class="info-group" style="background: #e0f2fe; border-color: #bae6fd;">
+                            <div class="info-label" style="color: #0369a1;">Recuperación estimada</div>
+                            <div class="info-value" style="color: #0369a1; font-weight: 700;">${recuperacionEstimada}</div>
+                        </div>
+                        <div class="info-group"><div class="info-label">Descripción Breve</div><div class="info-value" style="font-size: 13px; line-height: 1.4;">${descBreve}</div></div>
+                        <div class="info-group"><div class="info-label">Gestión de Terreno (Observación)</div><div class="info-value" style="font-size: 13px; line-height: 1.4; white-space: pre-line;">${observacion}</div></div>
+                    </div>
+                    <div class="photos-grid-container">
+                        <div class="photo-slot"><img src="fotos/${numero}_1.png" onerror="tryAlternateImage(this, '${numero}', 1)" onclick="openModal(this, 'WO: ${wo} - Foto 1')" title="Clic para maximizar"><span class="photo-slot-label">Foto 1</span></div>
+                        <div class="photo-slot"><img src="fotos/${numero}_2.png" onerror="tryAlternateImage(this, '${numero}', 2)" onclick="openModal(this, 'WO: ${wo} - Foto 2')" title="Clic para maximizar"><span class="photo-slot-label">Foto 2</span></div>
+                        <div class="photo-slot"><img src="fotos/${numero}_3.png" onerror="tryAlternateImage(this, '${numero}', 3)" onclick="openModal(this, 'WO: ${wo} - Foto 3')" title="Clic para maximizar"><span class="photo-slot-label">Foto 3</span></div>
+                        <div class="photo-slot"><img src="fotos/${numero}_4.png" onerror="tryAlternateImage(this, '${numero}', 4)" onclick="openModal(this, 'WO: ${wo} - Foto 4')" title="Clic para maximizar"><span class="photo-slot-label">Foto 4</span></div>
+                    </div>
+                </div>
+            `;
+            container.appendChild(section);
+        }
+
+        
+
+                                function tryAlternateEdificioImage(imgElement, edificioName, slotNum) {
+            const cleanKey = String(edificioName).toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9_]/g, '_');
+            const currentSrc = imgElement.src;
+
+            if (!imgElement.dataset.attempts) {
+                imgElement.dataset.attempts = '1';
+                imgElement.src = `fotos/${cleanKey}_${slotNum}.jpg`;
+            } else if (imgElement.dataset.attempts === '1') {
+                imgElement.dataset.attempts = '2';
+                imgElement.src = `fotos/${cleanKey}_${slotNum}.png`;
+            } else if (imgElement.dataset.attempts === '2') {
+                imgElement.dataset.attempts = '3';
+                imgElement.src = `Fotos/${cleanKey}_${slotNum}.jpg`;
+            } else {
+                const slot = imgElement.parentElement;
+                slot.innerHTML = `<div style="color: #94a3b8; font-size: 20px;">📷</div><div style="color: #64748b; font-size: 10px; margin-top: 2px;">Sin foto</div><span class="photo-slot-label">Foto ${slotNum}</span>`;
+            }
+        }
+
+        function showEdificioDetail(edificioName) {
+            document.getElementById('breadcrumb-text').innerHTML = `Reporte Pon / <a href="#" onclick="showPonList('No recuperable'); return false;" style="color:var(--secondary-color); text-decoration:none;">No recuperable</a> / <span>${edificioName}</span>`;
+            const container = document.getElementById('main-content-area');
+            container.innerHTML = '';
+
+            const headers = noRecuperableSheetData[0];
+            const edifIdx = findHeaderIndex(headers, ['edificio', 'conjunto']);
+            const oltIdx = findHeaderIndex(headers, ['olt', 'corte']);
+            const ctoIdx = findHeaderIndex(headers, ['cto']);
+            const cableIdx = findHeaderIndex(headers, ['cable']);
+            const splitterIdx = findHeaderIndex(headers, ['splitter']);
+            const ponIdx = findHeaderIndex(headers, ['pon', 'puerto']);
+
+            const edificioRows = [];
+            for (let i = 1; i < noRecuperableSheetData.length; i++) {
+                const r = noRecuperableSheetData[i];
+                if (!r || r.length === 0) continue;
+                const edif = edifIdx !== -1 && r[edifIdx] !== undefined && String(r[edifIdx]).trim() !== '' ? String(r[edifIdx]).trim() : (r[6] !== undefined ? String(r[6]).trim() : 'N/A');
+                if (edif === edificioName) edificioRows.push(r);
+            }
+
+            const cleanKey = String(edificioName).toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9_]/g, '_');
+
+            const card = document.createElement('div');
+            card.className = 'orders-table-card';
+            let html = `
+                <button class="btn-back" onclick="showPonList('No recuperable')">← Volver al listado de edificios</button>
+                <div class="orders-table-header">
+                    <h2>Edificio: ${edificioName} (${edificioRows.length} Registros / CTOs)</h2>
+                    <button class="btn-excel" onclick="exportEdificioToExcel('${edificioName.replace(/'/g, "\\'")}')">📥 Exportar a Excel</button>
+                </div>
+                
+                <div style="margin-bottom: 25px;">
+                    <h3 style="font-size: 15px; color: var(--primary-color); margin-bottom: 12px;">Fotografías del Edificio</h3>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; background: #f8fafc; border: 1px solid var(--border-color); border-radius: 10px; padding: 15px;">
+                        <div class="photo-slot" style="height: 200px;"><img src="fotos/${cleanKey}_1.jpg" onerror="tryAlternateEdificioImage(this, '${edificioName.replace(/'/g, "\\'")}', 1)" onclick="openModal(this, 'Edificio: ${edificioName} - Foto 1')" title="Clic para maximizar"><span class="photo-slot-label">Foto 1</span></div>
+                        <div class="photo-slot" style="height: 200px;"><img src="fotos/${cleanKey}_2.jpg" onerror="tryAlternateEdificioImage(this, '${edificioName.replace(/'/g, "\\'")}', 2)" onclick="openModal(this, 'Edificio: ${edificioName} - Foto 2')" title="Clic para maximizar"><span class="photo-slot-label">Foto 2</span></div>
+                    </div>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>OLT</th>
+                            <th>Cable</th>
+                            <th>Splitter</th>
+                            <th>Puerto PON</th>
+                            <th>CTO</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            edificioRows.forEach(r => {
+                const olt = oltIdx !== -1 ? r[oltIdx] : (r[1] || 'N/A');
+                const cable = cableIdx !== -1 ? r[cableIdx] : (r[4] || 'N/A');
+                const splitter = splitterIdx !== -1 ? r[splitterIdx] : (r[3] || 'N/A');
+                const pon = ponIdx !== -1 ? r[ponIdx] : (r[2] || 'N/A');
+                const ctoVal = ctoIdx !== -1 ? r[ctoIdx] : (r[5] !== undefined ? r[5] : 'N/A');
+
+                html += `
+                    <tr>
+                        <td>${olt}</td>
+                        <td>${cable}</td>
+                        <td>${splitter}</td>
+                        <td>${pon}</td>
+                        <td style="font-weight: 600; color: #0284c7;">${ctoVal}</td>
+                    </tr>
+                `;
+            });
+
+            html += `</tbody><tfoot><tr><td colspan="4" style="text-align: right; font-weight: 700;">Total Registros / CTOs:</td><td style="font-weight: 700; color: #0284c7; font-size: 15px;">${edificioRows.length}</td></tr></tfoot></table>`;
+            card.innerHTML = html;
+            container.appendChild(card);
+        }
+
+        function exportEdificioToExcel(edificioName) {
+            const headers = noRecuperableSheetData[0];
+            const edifIdx = findHeaderIndex(headers, ['edificio', 'conjunto']);
+            const oltIdx = findHeaderIndex(headers, ['olt', 'corte']);
+            const ctoIdx = findHeaderIndex(headers, ['cto']);
+            const cableIdx = findHeaderIndex(headers, ['cable']);
+            const splitterIdx = findHeaderIndex(headers, ['splitter']);
+            const ponIdx = findHeaderIndex(headers, ['pon', 'puerto']);
+
+            const exportData = [];
+            for (let i = 1; i < noRecuperableSheetData.length; i++) {
+                const r = noRecuperableSheetData[i];
+                if (!r || r.length === 0) continue;
+                const edif = edifIdx !== -1 && r[edifIdx] !== undefined && String(r[edifIdx]).trim() !== '' ? String(r[edifIdx]).trim() : (r[6] !== undefined ? String(r[6]).trim() : 'N/A');
+                if (edif === edificioName) {
+                    exportData.push({
+                        "OLT": oltIdx !== -1 ? r[oltIdx] : (r[1] || ''),
+                        "Cable": cableIdx !== -1 ? r[cableIdx] : (r[4] || ''),
+                        "Splitter": splitterIdx !== -1 ? r[splitterIdx] : (r[3] || ''),
+                        "Puerto PON": ponIdx !== -1 ? r[ponIdx] : (r[2] || ''),
+                        "CTO": ctoIdx !== -1 ? r[ctoIdx] : (r[5] || ''),
+                        "Edificio / Conjunto": edif
+                    });
+                }
+            }
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "CTOs_Edificio");
+            XLSX.writeFile(workbook, `CTOs_${edificioName.replace(/\s+/g, '_')}.xlsx`);
+        }
+
+        function searchOrder() {
+            const query = document.getElementById('search-input').value.trim().toLowerCase();
+            if (!query) { alert('Por favor ingrese un número de WO o WOT para buscar.'); return; }
+            const index = excelData.findIndex(row => {
+                const numero = String(row['Número'] || '').trim().toLowerCase();
+                const principal = String(row['Principal'] || '').trim().toLowerCase();
+                return numero.includes(query) || principal.includes(query);
+            });
+            if (index !== -1) {
+                showSlide(index, excelData[index]['Estado/Terremo'] || 'Búsqueda');
+            } else {
+                alert('No se encontró ninguna orden o tiquete que coincida con: ' + query);
+            }
+        }
+
+        function tryAlternateImage(imgElement, numero, slotNum) {
+            const currentSrc = imgElement.src;
+            if (currentSrc.endsWith(`fotos/${numero}_${slotNum}.png`)) {
+                imgElement.src = `fotos/${numero}_${slotNum}.jpg`;
+            } else if (currentSrc.endsWith(`fotos/${numero}_${slotNum}.jpg`)) {
+                imgElement.src = `Fotos/${numero}_${slotNum}.png`;
+            } else if (currentSrc.endsWith(`Fotos/${numero}_${slotNum}.png`)) {
+                imgElement.src = `Fotos/${numero}_${slotNum}.jpg`;
+            } else {
+                const slot = imgElement.parentElement;
+                slot.innerHTML = `<div style="color: #94a3b8; font-size: 20px;">📷</div><div style="color: #64748b; font-size: 10px; margin-top: 2px;">Sin foto</div><span class="photo-slot-label">Foto ${slotNum}</span>`;
+            }
+        }
+
+        function openModal(imgElement, captionText) {
+            if (!imgElement.src || imgElement.src.includes('Sin foto')) return;
+            const modal = document.getElementById('image-modal');
+            const modalImg = document.getElementById('modal-img');
+            const modalCaption = document.getElementById('modal-caption');
+            modal.style.display = 'flex';
+            modalImg.src = imgElement.src;
+            modalCaption.innerText = captionText;
+        }
+
+        function closeModal() {
+            document.getElementById('image-modal').style.display = 'none';
+        }
+
+        function resetToHome() {
+            document.getElementById('breadcrumb-text').innerHTML = `Inicio / <span>Panel Principal</span>`;
+            document.getElementById('main-content-area').innerHTML = `
+                <div style="text-align: center; color: #64748b; margin-top: 50px;">
+                    <h2>Bienvenido al Sistema de Gestión de Órdenes <span style="font-size: 14px; background: #e0f2fe; color: #0369a1; padding: 2px 10px; border-radius: 12px; font-weight: 600; vertical-align: middle;">Versión 1.0</span></h2>
+                    <p style="margin-top: 10px;">Seleccione una opción del menú lateral izquierdo para comenzar la revisión.</p>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>

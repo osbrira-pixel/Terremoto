@@ -458,6 +458,9 @@
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Leaflet CSS y JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
 <body>
 
@@ -481,7 +484,7 @@
     <aside>
         <div class="sidebar-header" style="display: flex; justify-content: space-between; align-items: center;">
             <h1>Service Now - O&M</h1>
-            <span style="background: #3b82f6; color: white; font-size: 11px; padding: 3px 8px; border-radius: 6px; font-weight: 600;">v2.0</span>
+            <span style="background: #3b82f6; color: white; font-size: 11px; padding: 3px 8px; border-radius: 6px; font-weight: 600;">v2.3</span>
         </div>
         <div class="sidebar-search-container">
             <div class="search-box">
@@ -515,6 +518,10 @@
                     <span>📊 Ver Afectación Pereira</span>
                     <span class="badge" style="background: #10b981;">Abrir</span>
                 </a>
+                <a href="#" class="menu-item" style="border-left-color: #f59e0b; background: #1e293b; margin-top: 6px;" onclick="event.preventDefault(); showMapDashboard();">
+                    <span>🗺️ Mapa de Afectación</span>
+                    <span class="badge" style="background: #f59e0b;">Mapa</span>
+                </a>
             </div>
         </div>
     </aside>
@@ -526,7 +533,7 @@
         </header>
         <div class="content-container" id="main-content-area">
             <div style="text-align: center; color: #64748b; margin-top: 50px;">
-                <h2>Bienvenido al Sistema de Gestión de Órdenes <span style="font-size: 14px; background: #e0f2fe; color: #0369a1; padding: 2px 10px; border-radius: 12px; font-weight: 600; vertical-align: middle;">Versión 2.0</span></h2>
+                <h2>Bienvenido al Sistema de Gestión de Órdenes <span style="font-size: 14px; background: #e0f2fe; color: #0369a1; padding: 2px 10px; border-radius: 12px; font-weight: 600; vertical-align: middle;">Versión 2.1</span></h2>
                 <p style="margin-top: 10px;">Seleccione o cargue su archivo Excel para comenzar.</p>
             </div>
         </div>
@@ -538,6 +545,9 @@
         let noRecuperableSheetData = [];
         let afectacionPereiraSheetData = [];
         let workbookGlobal = null;
+        let mapInstance = null;
+        let mapMarkersLayer = null;
+        let activeFilters = {}; // Almacena los filtros activos por columna (L a R)
 
         window.addEventListener('DOMContentLoaded', () => {
             fetch('Validacion_puerto_PON_fallassplitter.xlsx')
@@ -706,163 +716,327 @@
             });
         }
 
-        function showPonList(estadoEstado) {
-            document.getElementById('breadcrumb-text').innerHTML = `Reporte Pon / <span>${estadoEstado}</span>`;
-            const container = document.getElementById('main-content-area');
-            container.innerHTML = '';
-            const isNoRecuperable = estadoEstado.toLowerCase() === 'no recuperable';
-            const card = document.createElement('div');
-            card.className = 'orders-table-card';
-
-            if (isNoRecuperable) {
-                const headers = noRecuperableSheetData[0];
-                const edifIdx = findHeaderIndex(headers, ['edificio', 'conjunto']);
-                const comunaIdx = findHeaderIndex(headers, ['comuna']);
-                const centralIdx = findHeaderIndex(headers, ['central']);
-                const groups = {};
-
-                for (let i = 1; i < noRecuperableSheetData.length; i++) {
-                    const r = noRecuperableSheetData[i];
-                    if (!r || r.length === 0) continue;
-                    const edificio = edifIdx !== -1 && r[edifIdx] !== undefined && String(r[edifIdx]).trim() !== '' ? String(r[edifIdx]).trim() : (r[6] !== undefined ? String(r[6]).trim() : 'N/A');
-                    if (!edificio || edificio === 'N/A') continue;
-                    const comuna = comunaIdx !== -1 && r[comunaIdx] !== undefined ? r[comunaIdx] : (r[0] || 'N/A');
-                    const central = centralIdx !== -1 && r[centralIdx] !== undefined ? r[centralIdx] : (r[1] || 'N/A');
-
-                    if (!groups[edificio]) {
-                        groups[edificio] = { edificio, central, comuna, count: 0 };
-                    }
-                    groups[edificio].count += 1;
-                }
-
-                const groupList = Object.values(groups);
-                groupList.sort((a, b) => a.edificio.localeCompare(b.edificio));
-                let totalCtosSum = 0;
-
-                let html = `
-                    <button class="btn-back" onclick="resetToHome()">← Volver al inicio</button>
-                    <div class="orders-table-header">
-                        <h2>Reporte PON - Estado: ${estadoEstado} (${groupList.length} Edificios)</h2>
-                        <button class="btn-excel" onclick="exportPonToExcel('${estadoEstado}')">📥 Exportar a Excel</button>
-                    </div>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Comuna</th>
-                                <th>Central</th>
-                                <th>Edificio / Conjunto</th>
-                                <th style="text-align: center;">Cuenta de Edificio / Conjunto (CTOs Afectadas)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+        function buildPereiraMenu() {
+            const container = document.getElementById('afectacion-menu-container');
+            if (container) {
+                container.innerHTML = `
+                    <a href="#" class="menu-item" style="border-left-color: #10b981; background: #1e293b;" onclick="event.preventDefault(); showAfectacionDashboard();">
+                        <span>📊 Ver Afectación Pereira</span>
+                        <span class="badge" style="background: #10b981;">Abrir</span>
+                    </a>
+                    <a href="#" class="menu-item" style="border-left-color: #f59e0b; background: #1e293b; margin-top: 6px;" onclick="event.preventDefault(); showMapDashboard();">
+                        <span>🗺️ Mapa de Afectación</span>
+                        <span class="badge" style="background: #f59e0b;">Mapa</span>
+                    </a>
                 `;
-
-                groupList.forEach(item => {
-                    totalCtosSum += item.count;
-                    html += `
-                        <tr>
-                            <td>${item.comuna}</td>
-                            <td>${item.central}</td>
-                            <td><a href="#" class="order-link" onclick="showEdificioDetail('${item.edificio.replace(/'/g, "\\'")}')">${item.edificio}</a></td>
-                            <td style="text-align: center; font-weight: 700; color: #0284c7; font-size: 15px;">${item.count}</td>
-                        </tr>
-                    `;
-                });
-
-                html += `</tbody><tfoot><tr><td colspan="3" style="text-align: right; font-weight: 700;">Total CTOs Afectadas:</td><td style="text-align: center; font-weight: 700; color: #0284c7; font-size: 15px;">${totalCtosSum}</td></tr></tfoot></table>`;
-                card.innerHTML = html;
-                container.appendChild(card);
-            } else {
-                const filteredPonRows = [];
-                for (let i = 1; i < ponData.length; i++) {
-                    const row = ponData[i];
-                    if (!row || row.length === 0) continue;
-                    if (String(row[12] || '').trim().toLowerCase() === estadoEstado.toLowerCase()) {
-                        filteredPonRows.push(row);
-                    }
-                }
-
-                let totalAfectacionPonSum = 0;
-                let html = `
-                    <button class="btn-back" onclick="resetToHome()">← Volver al inicio</button>
-                    <div class="orders-table-header">
-                        <h2>Reporte PON - Estado: ${estadoEstado} (${filteredPonRows.length})</h2>
-                        <button class="btn-excel" onclick="exportPonToExcel('${estadoEstado}')">📥 Exportar a Excel</button>
-                    </div>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Corte NOC</th>
-                                <th>Puerto PON</th>
-                                <th>Cable</th>
-                                <th>Splitter</th>
-                                <th style="text-align: center;">Afectación</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                `;
-
-                filteredPonRows.forEach(r => {
-                    const afNum = Number(r[6]);
-                    if (!isNaN(afNum)) totalAfectacionPonSum += afNum;
-                    html += `<tr><td>${r[0] || 'N/A'}</td><td>${r[2] || 'N/A'}</td><td>${r[4] || 'N/A'}</td><td>${r[5] || 'N/A'}</td><td style="text-align: center;">${getAfectacionBadge(r[6])}</td></tr>`;
-                });
-
-                html += `</tbody><tfoot><tr><td colspan="4" style="text-align: right; font-weight: 700;">Total Afectación:</td><td style="text-align: center; font-weight: 700; color: #0284c7; font-size: 15px;">${totalAfectacionPonSum}</td></tr></tfoot></table>`;
-                card.innerHTML = html;
-                container.appendChild(card);
             }
         }
 
-        function exportPonToExcel(estadoEstado) {
-            const isNoRecuperable = estadoEstado.toLowerCase() === 'no recuperable';
-            let exportData = [];
-
-            if (isNoRecuperable) {
-                const headers = noRecuperableSheetData[0];
-                const edifIdx = findHeaderIndex(headers, ['edificio', 'conjunto']);
-                const comunaIdx = findHeaderIndex(headers, ['comuna']);
-                const centralIdx = findHeaderIndex(headers, ['central']);
-                const groups = {};
-
-                for (let i = 1; i < noRecuperableSheetData.length; i++) {
-                    const r = noRecuperableSheetData[i];
-                    if (!r || r.length === 0) continue;
-                    const edificio = edifIdx !== -1 && r[edifIdx] !== undefined && String(r[edifIdx]).trim() !== '' ? String(r[edifIdx]).trim() : (r[6] !== undefined ? String(r[6]).trim() : '');
-                    if (!edificio || edificio === 'N/A') continue;
-
-                    if (!groups[edificio]) {
-                        groups[edificio] = {
-                            "Comuna": comunaIdx !== -1 ? r[comunaIdx] : (r[0] || ''),
-                            "Central": centralIdx !== -1 ? r[centralIdx] : (r[1] || ''),
-                            "Edificio / Conjunto": edificio,
-                            "Cuenta de Edificio / Conjunto (CTOs Afectadas)": 0
-                        };
-                    }
-                    groups[edificio]["Cuenta de Edificio / Conjunto (CTOs Afectadas)"] += 1;
-                }
-                exportData = Object.values(groups);
+        function onFilterChange(colIndex, val) {
+            if (val === "") {
+                delete activeFilters[colIndex];
             } else {
-                for (let i = 1; i < ponData.length; i++) {
-                    const row = ponData[i];
+                activeFilters[colIndex] = val;
+            }
+            updateMapMarkers();
+        }
+
+        function showMapDashboard() {
+            document.getElementById('breadcrumb-text').innerHTML = `Inicio / <span>Mapa de Afectación Pereira</span>`;
+            const container = document.getElementById('main-content-area');
+            container.innerHTML = '';
+
+            if (!afectacionPereiraSheetData || afectacionPereiraSheetData.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; color: #64748b; margin-top: 50px;">
+                        <h2>No hay datos de Afectación Pereira cargados</h2>
+                        <p style="margin-top: 10px;">Asegúrese de que el archivo Excel contenga la hoja de afectación de Pereira.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const card = document.createElement('div');
+            card.className = 'orders-table-card';
+            card.style.display = 'flex';
+            card.style.flexDirection = 'column';
+            card.style.height = 'calc(100vh - 140px)';
+
+            // Construir dinámicamente los selectores de filtros (Columnas L a R, índices 11 a 17) para colocarlos arriba del mapa
+            const headers = afectacionPereiraSheetData[0];
+            let filtersBarHtml = '';
+            
+            for (let c = 11; c <= 17; c++) {
+                if (c >= headers.length) continue;
+                const colName = String(headers[c] || '').trim();
+                if (!colName) continue;
+
+                const uniqueVals = new Set();
+                for (let i = 1; i < afectacionPereiraSheetData.length; i++) {
+                    const row = afectacionPereiraSheetData[i];
                     if (!row || row.length === 0) continue;
-                    if (String(row[12] || '').trim().toLowerCase() === estadoEstado.toLowerCase()) {
-                        exportData.push({
-                            "Corte NOC": row[0] || '',
-                            "PON": row[2] || '',
-                            "Cable": row[4] || '',
-                            "Splitter": row[5] || '',
-                            "Afectación": row[6] !== undefined ? row[6] : '',
-                            "Observación": row[7] || ''
-                        });
-                    }
+                    const val = String(row[c] !== undefined && row[c] !== null && row[c] !== '' ? row[c] : 'Sin dato').trim();
+                    uniqueVals.add(val);
+                }
+
+                const selectedVal = activeFilters[c] || '';
+
+                filtersBarHtml += `
+                    <div style="display: flex; flex-direction: column; min-width: 140px; flex: 1;">
+                        <label style="font-size: 10px; color: #64748b; font-weight: 700; margin-bottom: 3px; text-transform: uppercase;">${colName}</label>
+                        <select onchange="onFilterChange(${c}, this.value)" style="padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border-color); background: #f8fafc; color: #1e293b; font-size: 12px; font-weight: 600;">
+                            <option value="">-- Todos (${uniqueVals.size}) --</option>
+                            ${Array.from(uniqueVals).sort().map(v => `<option value="${v}" ${selectedVal === v ? 'selected' : ''}>${v}</option>`).join('')}
+                        </select>
+                    </div>
+                `;
+            }
+
+            card.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <div>
+                        <button class="btn-back" style="margin-bottom: 0;" onclick="resetToHome()">← Volver al inicio</button>
+                        <h2 style="display: inline-block; margin-left: 15px; font-size: 18px; color: var(--primary-color);">Mapa de Afectación y Georreferenciación (Pereira)</h2>
+                    </div>
+                    <div id="map-counter-badge" style="font-size: 13px; font-weight: 600; color: #0284c7; background: #e0f2fe; padding: 4px 12px; border-radius: 20px;">Mostrando puntos...</div>
+                </div>
+                ${filtersBarHtml ? `<div style="display: flex; gap: 10px; flex-wrap: wrap; background: #ffffff; padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 12px; align-items: center;">${filtersBarHtml}</div>` : ''}
+                <div id="map-container-div" style="flex-grow: 1; width: 100%; border-radius: 8px; border: 1px solid var(--border-color); z-index: 1;"></div>
+            `;
+            container.appendChild(card);
+
+            // Inicializar mapa Leaflet centrado en Pereira (4.8133, -75.6961)
+            setTimeout(() => {
+                if (mapInstance) {
+                    mapInstance.remove();
+                    mapInstance = null;
+                }
+                mapInstance = L.map('map-container-div').setView([4.8133, -75.6961], 13);
+                L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+                    maxZoom: 19,
+                    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012'
+                }).addTo(mapInstance);
+
+                mapMarkersLayer = L.layerGroup().addTo(mapInstance);
+                updateMapMarkers();
+            }, 100);
+        }
+
+        function updateMapMarkers() {
+            if (!mapInstance || !mapMarkersLayer) return;
+            mapMarkersLayer.clearLayers();
+
+            const headers = afectacionPereiraSheetData[0];
+            
+            let latIdx = findHeaderIndex(headers, ['lat', 'latitud', 'y']);
+            let lonIdx = findHeaderIndex(headers, ['lon', 'long', 'longitud', 'x']);
+            
+            if (latIdx === -1 || lonIdx === -1) {
+                for (let c = 0; c < headers.length; c++) {
+                    const hName = String(headers[c] || '').toLowerCase();
+                    if (hName.includes('lat')) latIdx = c;
+                    if (hName.includes('lon') || hName.includes('long') || hName.includes('x')) lonIdx = c;
                 }
             }
 
+            let plottedCount = 0;
+            const bounds = [];
+
+            for (let i = 1; i < afectacionPereiraSheetData.length; i++) {
+                const row = afectacionPereiraSheetData[i];
+                if (!row || row.length === 0) continue;
+
+                let passFilters = true;
+                for (const [colIdxStr, filterVal] of Object.entries(activeFilters)) {
+                    const cIdx = parseInt(colIdxStr);
+                    const rowVal = String(row[cIdx] !== undefined && row[cIdx] !== null && row[cIdx] !== '' ? row[cIdx] : 'Sin dato').trim();
+                    if (rowVal !== filterVal) {
+                        passFilters = false;
+                        break;
+                    }
+                }
+                if (!passFilters) continue;
+
+                let lat = latIdx !== -1 ? parseFloat(row[latIdx]) : NaN;
+                let lon = lonIdx !== -1 ? parseFloat(row[lonIdx]) : NaN;
+
+                if (isNaN(lat) || isNaN(lon)) {
+                    for (let c = 0; c < row.length; c++) {
+                        const val = parseFloat(row[c]);
+                        if (!isNaN(val)) {
+                            if (val > 4.5 && val < 5.2 && isNaN(lat)) lat = val;
+                            else if (val > -76.2 && val < -75.0 && isNaN(lon)) lon = val;
+                        }
+                    }
+                }
+
+                if (!isNaN(lat) && !isNaN(lon)) {
+                    plottedCount++;
+                    bounds.push([lat, lon]);
+
+                    let popupContent = `<div style="font-family: 'Segoe UI'; font-size: 12px; max-width: 220px;"><strong>Registro #${i}</strong><br><hr style="margin: 4px 0;">`;
+                    headers.forEach((h, idx) => {
+                        if (row[idx] !== undefined && row[idx] !== null && String(row[idx]).trim() !== '') {
+                            popupContent += `<b>${h || 'Col ' + idx}:</b> ${row[idx]}<br>`;
+                        }
+                    });
+                    popupContent += `</div>`;
+
+                    const marker = L.marker([lat, lon]).bindPopup(popupContent);
+                    mapMarkersLayer.addLayer(marker);
+                }
+            }
+
+            const counterBadge = document.getElementById('map-counter-badge');
+            if (counterBadge) {
+                counterBadge.innerText = `Mostrando ${plottedCount} puntos georreferenciados`;
+            }
+
+            if (bounds.length > 0) {
+                mapInstance.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+            }
+        }
+
+        function showAfectacionDashboard() {
+            document.getElementById('breadcrumb-text').innerHTML = `Inicio / <span>Afectación Pereira</span>`;
+            const container = document.getElementById('main-content-area');
+            container.innerHTML = '';
+
+            if (!afectacionPereiraSheetData || afectacionPereiraSheetData.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; color: #64748b; margin-top: 50px;">
+                        <h2>No hay datos de Afectación Pereira cargados</h2>
+                        <p style="margin-top: 10px;">Asegúrese de que el archivo Excel contenga la hoja de afectación de Pereira.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const headers = afectacionPereiraSheetData[0];
+            const card = document.createElement('div');
+            card.className = 'orders-table-card';
+
+            let html = `
+                <button class="btn-back" onclick="resetToHome()">← Volver al inicio</button>
+                <div class="orders-table-header">
+                    <h2>Resumen de Afectación Pereira</h2>
+                    <button class="btn-excel" onclick="showMapDashboard()">🗺️ Ver en Mapa</button>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-top: 20px;">
+            `;
+
+            for (let c = 11; c <= 17; c++) {
+                if (c >= headers.length) continue;
+                const colName = String(headers[c] || '').trim();
+                if (!colName) continue;
+
+                const valCounts = {};
+                for (let i = 1; i < afectacionPereiraSheetData.length; i++) {
+                    const row = afectacionPereiraSheetData[i];
+                    if (!row || row.length === 0) continue;
+                    const val = String(row[c] !== undefined && row[c] !== null && row[c] !== '' ? row[c] : 'Sin dato').trim();
+                    valCounts[val] = (valCounts[val] || 0) + 1;
+                }
+
+                html += `
+                    <div style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: 10px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                        <h3 style="font-size: 14px; text-transform: uppercase; color: var(--primary-color); border-bottom: 2px solid #3b82f6; padding-bottom: 8px; margin-bottom: 12px; font-weight: 700;">${colName}</h3>
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                `;
+
+                for (const [val, count] of Object.entries(valCounts)) {
+                    html += `
+                        <div onclick="showPereiraFilteredList(${c}, '${colName.replace(/'/g, "\'")}', '${val.replace(/'/g, "\'")}')" 
+                             style="display: flex; justify-content: space-between; align-items: center; background: white; padding: 10px 14px; border-radius: 6px; border: 1px solid #e2e8f0; cursor: pointer; transition: all 0.2s;"
+                             onmouseover="this.style.borderColor='#3b82f6'; this.style.transform='translateX(3px)';" 
+                             onmouseout="this.style.borderColor='#e2e8f0'; this.style.transform='translateX(0)';">
+                            <span style="font-size: 13px; font-weight: 600; color: #334155;">${val}</span>
+                            <span class="badge" style="background: #059669; font-size: 12px; padding: 3px 10px;">${count}</span>
+                        </div>
+                    `;
+                }
+
+                html += `</div></div>`;
+            }
+
+            html += `</div>`;
+            card.innerHTML = html;
+            container.appendChild(card);
+        }
+
+        function showPereiraFilteredList(colIndex, colName, filterVal) {
+            document.getElementById('breadcrumb-text').innerHTML = `Afectación Pereira / <span>${colName}: ${filterVal}</span>`;
+            const container = document.getElementById('main-content-area');
+            container.innerHTML = '';
+
+            const headers = afectacionPereiraSheetData[0];
+            const filteredRows = [];
+            for (let i = 1; i < afectacionPereiraSheetData.length; i++) {
+                const row = afectacionPereiraSheetData[i];
+                if (!row || row.length === 0) continue;
+                const val = String(row[colIndex] !== undefined && row[colIndex] !== null && row[colIndex] !== '' ? row[colIndex] : 'Sin dato').trim();
+                if (val === filterVal) {
+                    filteredRows.push(row);
+                }
+            }
+
+            const card = document.createElement('div');
+            card.className = 'orders-table-card';
+            
+            let html = `
+                <button class="btn-back" onclick="showAfectacionDashboard()">← Volver al resumen</button>
+                <div class="orders-table-header">
+                    <h2>Pereira - ${colName}: "${filterVal}" (${filteredRows.length} registros)</h2>
+                    <button class="btn-excel" onclick="exportPereiraToExcel('${colName}', '${filterVal}', ${colIndex})">📥 Exportar a Excel</button>
+                </div>
+                <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+            `;
+
+            headers.forEach(h => {
+                html += `<th>${h || 'Columna'}</th>`;
+            });
+
+            html += `
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            filteredRows.forEach(r => {
+                html += `<tr>`;
+                headers.forEach((_, idx) => {
+                    html += `<td>${r[idx] !== undefined && r[idx] !== null ? r[idx] : ''}</td>`;
+                });
+                html += `</tr>`;
+            });
+
+            html += `</tbody></table></div>`;
+            card.innerHTML = html;
+            container.appendChild(card);
+        }
+
+        function exportPereiraToExcel(colName, filterVal, colIndex) {
+            const headers = afectacionPereiraSheetData[0];
+            const exportData = [];
+            for (let i = 1; i < afectacionPereiraSheetData.length; i++) {
+                const r = afectacionPereiraSheetData[i];
+                if (!r || r.length === 0) continue;
+                const val = String(r[colIndex] !== undefined && r[colIndex] !== null && r[colIndex] !== '' ? r[colIndex] : 'Sin dato').trim();
+                if (val === filterVal) {
+                    const rowObj = {};
+                    headers.forEach((h, idx) => {
+                        rowObj[h || `Col_${idx}`] = r[idx] !== undefined ? r[idx] : '';
+                    });
+                    exportData.push(rowObj);
+                }
+            }
             const worksheet = XLSX.utils.json_to_sheet(exportData);
             const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "Reporte_PON");
-            XLSX.writeFile(workbook, `ReportePON_${estadoEstado.replace(/\s+/g, '_')}.xlsx`);
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Pereira_Filtro");
+            XLSX.writeFile(workbook, `Pereira_${colName.replace(/\s+/g, '_')}_${filterVal.replace(/\s+/g, '_')}.xlsx`);
         }
 
         function showOrdersList(estado) {
@@ -995,134 +1169,6 @@
             container.appendChild(section);
         }
 
-        
-
-                                function tryAlternateEdificioImage(imgElement, edificioName, slotNum) {
-            const cleanKey = String(edificioName).toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9_]/g, '_');
-            const currentSrc = imgElement.src;
-
-            if (!imgElement.dataset.attempts) {
-                imgElement.dataset.attempts = '1';
-                imgElement.src = `fotos/${cleanKey}_${slotNum}.jpg`;
-            } else if (imgElement.dataset.attempts === '1') {
-                imgElement.dataset.attempts = '2';
-                imgElement.src = `fotos/${cleanKey}_${slotNum}.png`;
-            } else if (imgElement.dataset.attempts === '2') {
-                imgElement.dataset.attempts = '3';
-                imgElement.src = `Fotos/${cleanKey}_${slotNum}.jpg`;
-            } else {
-                const slot = imgElement.parentElement;
-                slot.innerHTML = `<div style="color: #94a3b8; font-size: 20px;">📷</div><div style="color: #64748b; font-size: 10px; margin-top: 2px;">Sin foto</div><span class="photo-slot-label">Foto ${slotNum}</span>`;
-            }
-        }
-
-        function showEdificioDetail(edificioName) {
-            document.getElementById('breadcrumb-text').innerHTML = `Reporte Pon / <a href="#" onclick="showPonList('No recuperable'); return false;" style="color:var(--secondary-color); text-decoration:none;">No recuperable</a> / <span>${edificioName}</span>`;
-            const container = document.getElementById('main-content-area');
-            container.innerHTML = '';
-
-            const headers = noRecuperableSheetData[0];
-            const edifIdx = findHeaderIndex(headers, ['edificio', 'conjunto']);
-            const oltIdx = findHeaderIndex(headers, ['olt', 'corte']);
-            const ctoIdx = findHeaderIndex(headers, ['cto']);
-            const cableIdx = findHeaderIndex(headers, ['cable']);
-            const splitterIdx = findHeaderIndex(headers, ['splitter']);
-            const ponIdx = findHeaderIndex(headers, ['pon', 'puerto']);
-
-            const edificioRows = [];
-            for (let i = 1; i < noRecuperableSheetData.length; i++) {
-                const r = noRecuperableSheetData[i];
-                if (!r || r.length === 0) continue;
-                const edif = edifIdx !== -1 && r[edifIdx] !== undefined && String(r[edifIdx]).trim() !== '' ? String(r[edifIdx]).trim() : (r[6] !== undefined ? String(r[6]).trim() : 'N/A');
-                if (edif === edificioName) edificioRows.push(r);
-            }
-
-            const cleanKey = String(edificioName).toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9_]/g, '_');
-
-            const card = document.createElement('div');
-            card.className = 'orders-table-card';
-            let html = `
-                <button class="btn-back" onclick="showPonList('No recuperable')">← Volver al listado de edificios</button>
-                <div class="orders-table-header">
-                    <h2>Edificio: ${edificioName} (${edificioRows.length} Registros / CTOs)</h2>
-                    <button class="btn-excel" onclick="exportEdificioToExcel('${edificioName.replace(/'/g, "\\'")}')">📥 Exportar a Excel</button>
-                </div>
-                
-                <div style="margin-bottom: 25px;">
-                    <h3 style="font-size: 15px; color: var(--primary-color); margin-bottom: 12px;">Fotografías del Edificio</h3>
-                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; background: #f8fafc; border: 1px solid var(--border-color); border-radius: 10px; padding: 15px;">
-                        <div class="photo-slot" style="height: 200px;"><img src="fotos/${cleanKey}_1.jpg" onerror="tryAlternateEdificioImage(this, '${edificioName.replace(/'/g, "\\'")}', 1)" onclick="openModal(this, 'Edificio: ${edificioName} - Foto 1')" title="Clic para maximizar"><span class="photo-slot-label">Foto 1</span></div>
-                        <div class="photo-slot" style="height: 200px;"><img src="fotos/${cleanKey}_2.jpg" onerror="tryAlternateEdificioImage(this, '${edificioName.replace(/'/g, "\\'")}', 2)" onclick="openModal(this, 'Edificio: ${edificioName} - Foto 2')" title="Clic para maximizar"><span class="photo-slot-label">Foto 2</span></div>
-                    </div>
-                </div>
-
-                <table>
-                    <thead>
-                        <tr>
-                            <th>OLT</th>
-                            <th>Cable</th>
-                            <th>Splitter</th>
-                            <th>Puerto PON</th>
-                            <th>CTO</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
-
-            edificioRows.forEach(r => {
-                const olt = oltIdx !== -1 ? r[oltIdx] : (r[1] || 'N/A');
-                const cable = cableIdx !== -1 ? r[cableIdx] : (r[4] || 'N/A');
-                const splitter = splitterIdx !== -1 ? r[splitterIdx] : (r[3] || 'N/A');
-                const pon = ponIdx !== -1 ? r[ponIdx] : (r[2] || 'N/A');
-                const ctoVal = ctoIdx !== -1 ? r[ctoIdx] : (r[5] !== undefined ? r[5] : 'N/A');
-
-                html += `
-                    <tr>
-                        <td>${olt}</td>
-                        <td>${cable}</td>
-                        <td>${splitter}</td>
-                        <td>${pon}</td>
-                        <td style="font-weight: 600; color: #0284c7;">${ctoVal}</td>
-                    </tr>
-                `;
-            });
-
-            html += `</tbody><tfoot><tr><td colspan="4" style="text-align: right; font-weight: 700;">Total Registros / CTOs:</td><td style="font-weight: 700; color: #0284c7; font-size: 15px;">${edificioRows.length}</td></tr></tfoot></table>`;
-            card.innerHTML = html;
-            container.appendChild(card);
-        }
-
-        function exportEdificioToExcel(edificioName) {
-            const headers = noRecuperableSheetData[0];
-            const edifIdx = findHeaderIndex(headers, ['edificio', 'conjunto']);
-            const oltIdx = findHeaderIndex(headers, ['olt', 'corte']);
-            const ctoIdx = findHeaderIndex(headers, ['cto']);
-            const cableIdx = findHeaderIndex(headers, ['cable']);
-            const splitterIdx = findHeaderIndex(headers, ['splitter']);
-            const ponIdx = findHeaderIndex(headers, ['pon', 'puerto']);
-
-            const exportData = [];
-            for (let i = 1; i < noRecuperableSheetData.length; i++) {
-                const r = noRecuperableSheetData[i];
-                if (!r || r.length === 0) continue;
-                const edif = edifIdx !== -1 && r[edifIdx] !== undefined && String(r[edifIdx]).trim() !== '' ? String(r[edifIdx]).trim() : (r[6] !== undefined ? String(r[6]).trim() : 'N/A');
-                if (edif === edificioName) {
-                    exportData.push({
-                        "OLT": oltIdx !== -1 ? r[oltIdx] : (r[1] || ''),
-                        "Cable": cableIdx !== -1 ? r[cableIdx] : (r[4] || ''),
-                        "Splitter": splitterIdx !== -1 ? r[splitterIdx] : (r[3] || ''),
-                        "Puerto PON": ponIdx !== -1 ? r[ponIdx] : (r[2] || ''),
-                        "CTO": ctoIdx !== -1 ? r[ctoIdx] : (r[5] || ''),
-                        "Edificio / Conjunto": edif
-                    });
-                }
-            }
-            const worksheet = XLSX.utils.json_to_sheet(exportData);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "CTOs_Edificio");
-            XLSX.writeFile(workbook, `CTOs_${edificioName.replace(/\s+/g, '_')}.xlsx`);
-        }
-
         function searchOrder() {
             const query = document.getElementById('search-input').value.trim().toLowerCase();
             if (!query) { alert('Por favor ingrese un número de WO o WOT para buscar.'); return; }
@@ -1170,167 +1216,11 @@
             document.getElementById('breadcrumb-text').innerHTML = `Inicio / <span>Panel Principal</span>`;
             document.getElementById('main-content-area').innerHTML = `
                 <div style="text-align: center; color: #64748b; margin-top: 50px;">
-                    <h2>Bienvenido al Sistema de Gestión de Órdenes <span style="font-size: 14px; background: #e0f2fe; color: #0369a1; padding: 2px 10px; border-radius: 12px; font-weight: 600; vertical-align: middle;">Versión 2.0</span></h2>
+                    <h2>Bienvenido al Sistema de Gestión de Órdenes <span style="font-size: 14px; background: #e0f2fe; color: #0369a1; padding: 2px 10px; border-radius: 12px; font-weight: 600; vertical-align: middle;">Versión 2.1</span></h2>
                     <p style="margin-top: 10px;">Seleccione una opción del menú lateral izquierdo para comenzar la revisión.</p>
                 </div>
             `;
         }
-    
-        
-        
-        function buildPereiraMenu() {
-            const container = document.getElementById('afectacion-menu-container');
-            if (container) {
-                container.innerHTML = `
-                    <a href="#" class="menu-item" style="border-left-color: #10b981; background: #1e293b;" onclick="event.preventDefault(); showAfectacionDashboard();">
-                        <span>📊 Ver Afectación Pereira</span>
-                        <span class="badge" style="background: #10b981;">Abrir</span>
-                    </a>
-                `;
-            }
-        }
-
-        function showAfectacionDashboard() {
-            document.getElementById('breadcrumb-text').innerHTML = `Inicio / <span>Afectación Pereira</span>`;
-            const container = document.getElementById('main-content-area');
-            container.innerHTML = '';
-
-            if (!afectacionPereiraSheetData || afectacionPereiraSheetData.length === 0) {
-                container.innerHTML = `
-                    <div style="text-align: center; color: #64748b; margin-top: 50px;">
-                        <h2>No hay datos de Afectación Pereira cargados</h2>
-                        <p style="margin-top: 10px;">Asegúrese de que el archivo Excel contenga la hoja de afectación de Pereira.</p>
-                    </div>
-                `;
-                return;
-            }
-
-            const headers = afectacionPereiraSheetData[0];
-            const card = document.createElement('div');
-            card.className = 'orders-table-card';
-
-            let html = `
-                <button class="btn-back" onclick="resetToHome()">← Volver al inicio</button>
-                <div class="orders-table-header">
-                    <h2>Resumen de Afectación Pereira</h2>
-                </div>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-top: 20px;">
-            `;
-
-            for (let c = 11; c <= 17; c++) {
-                if (c >= headers.length) continue;
-                const colName = String(headers[c] || '').trim();
-                if (!colName) continue;
-
-                const valCounts = {};
-                for (let i = 1; i < afectacionPereiraSheetData.length; i++) {
-                    const row = afectacionPereiraSheetData[i];
-                    if (!row || row.length === 0) continue;
-                    const val = String(row[c] !== undefined && row[c] !== null && row[c] !== '' ? row[c] : 'Sin dato').trim();
-                    valCounts[val] = (valCounts[val] || 0) + 1;
-                }
-
-                html += `
-                    <div style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: 10px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
-                        <h3 style="font-size: 14px; text-transform: uppercase; color: var(--primary-color); border-bottom: 2px solid #3b82f6; padding-bottom: 8px; margin-bottom: 12px; font-weight: 700;">${colName}</h3>
-                        <div style="display: flex; flex-direction: column; gap: 8px;">
-                `;
-
-                for (const [val, count] of Object.entries(valCounts)) {
-                    html += `
-                        <div onclick="showPereiraFilteredList(${c}, '${colName.replace(/'/g, "\\'")}', '${val.replace(/'/g, "\\'")}')" 
-                             style="display: flex; justify-content: space-between; align-items: center; background: white; padding: 10px 14px; border-radius: 6px; border: 1px solid #e2e8f0; cursor: pointer; transition: all 0.2s;"
-                             onmouseover="this.style.borderColor='#3b82f6'; this.style.transform='translateX(3px)';" 
-                             onmouseout="this.style.borderColor='#e2e8f0'; this.style.transform='translateX(0)';">
-                            <span style="font-size: 13px; font-weight: 600; color: #334155;">${val}</span>
-                            <span class="badge" style="background: #059669; font-size: 12px; padding: 3px 10px;">${count}</span>
-                        </div>
-                    `;
-                }
-
-                html += `</div></div>`;
-            }
-
-            html += `</div>`;
-            card.innerHTML = html;
-            container.appendChild(card);
-        }
-
-        function showPereiraFilteredList(colIndex, colName, filterVal) {
-            document.getElementById('breadcrumb-text').innerHTML = `Afectación Pereira / <span>${colName}: ${filterVal}</span>`;
-            const container = document.getElementById('main-content-area');
-            container.innerHTML = '';
-
-            const headers = afectacionPereiraSheetData[0];
-            const filteredRows = [];
-            for (let i = 1; i < afectacionPereiraSheetData.length; i++) {
-                const row = afectacionPereiraSheetData[i];
-                if (!row || row.length === 0) continue;
-                const val = String(row[colIndex] !== undefined && row[colIndex] !== null && row[colIndex] !== '' ? row[colIndex] : 'Sin dato').trim();
-                if (val === filterVal) {
-                    filteredRows.push(row);
-                }
-            }
-
-            const card = document.createElement('div');
-            card.className = 'orders-table-card';
-            
-            let html = `
-                <button class="btn-back" onclick="showAfectacionDashboard()">← Volver al resumen</button>
-                <div class="orders-table-header">
-                    <h2>Pereira - ${colName}: "${filterVal}" (${filteredRows.length} registros)</h2>
-                    <button class="btn-excel" onclick="exportPereiraToExcel('${colName}', '${filterVal}', ${colIndex})">📥 Exportar a Excel</button>
-                </div>
-                <div style="overflow-x: auto;">
-                <table>
-                    <thead>
-                        <tr>
-            `;
-
-            headers.forEach(h => {
-                html += `<th>${h || 'Columna'}</th>`;
-            });
-
-            html += `
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
-
-            filteredRows.forEach(r => {
-                html += `<tr>`;
-                headers.forEach((_, idx) => {
-                    html += `<td>${r[idx] !== undefined && r[idx] !== null ? r[idx] : ''}</td>`;
-                });
-                html += `</tr>`;
-            });
-
-            html += `</tbody></table></div>`;
-            card.innerHTML = html;
-            container.appendChild(card);
-        }
-
-        function exportPereiraToExcel(colName, filterVal, colIndex) {
-            const headers = afectacionPereiraSheetData[0];
-            const exportData = [];
-            for (let i = 1; i < afectacionPereiraSheetData.length; i++) {
-                const r = afectacionPereiraSheetData[i];
-                if (!r || r.length === 0) continue;
-                const val = String(r[colIndex] !== undefined && r[colIndex] !== null && r[colIndex] !== '' ? r[colIndex] : 'Sin dato').trim();
-                if (val === filterVal) {
-                    const rowObj = {};
-                    headers.forEach((h, idx) => {
-                        rowObj[h || `Col_${idx}`] = r[idx] !== undefined ? r[idx] : '';
-                    });
-                    exportData.push(rowObj);
-                }
-            }
-            const worksheet = XLSX.utils.json_to_sheet(exportData);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "Pereira_Filtro");
-            XLSX.writeFile(workbook, `Pereira_${colName.replace(/\s+/g, '_')}_${filterVal.replace(/\s+/g, '_')}.xlsx`);
-        }
-
     </script>
 </body>
 </html>
